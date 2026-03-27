@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Snake - Profiles</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Écran de Profil -->
+    <div id="profile-screen" class="overlay">
+        <div class="neon-box">
+            <h1>NEON SNAKE</h1>
+            <p>Entre ton pseudo pour jouer :</p>
+            <input type="text" id="username-input" placeholder="TON PSEUDO..." maxlength="15">
+            <button id="start-btn">ENTRER</button>
+        </div>
+    </div>
+
+    <!-- Conteneur de Jeu -->
+    <div class="game-container hidden" id="game-ui">
+        <h1>NEON SNAKE</h1>
+        <div class="user-info">Joueur: <span id="display-username" class="neon-text">---</span></div>
+        <div class="score-board">
+            <div>Score: <span id="current-score">0</span></div>
+            <div>Ton Record: <span id="best-score">0</span></div>
+        </div>
+        
+        <div class="canvas-wrapper">
+            <canvas id="gameCanvas" width="400" height="400"></canvas>
+            <div id="game-over" class="hidden">
+                <h2>GAME OVER</h2>
+                <button id="restart-btn">REJOUER</button>
+                <button id="change-user-btn" style="margin-top: 10px; border-color: #00e5ff; color: #00e5ff; box-shadow: 0 0 10px #00e5ff;">CHANGER DE PROFIL</button>
+            </div>
+        </div>
+
+        <!-- Leaderboard -->
+        <div class="leaderboard-section">
+            <h3>TOP 5 DES MEILLEURS JOUEURS</h3>
+            <table id="leaderboard-table">
+                <thead>
+                    <tr>
+                        <th>RANG</th>
+                        <th>PSEUDO</th>
+                        <th>SCORE</th>
+                    </tr>
+                </thead>
+                <tbody id="leaderboard-body">
+                    <!-- Rempli par JS -->
+                </tbody>
+            </table>
+        </div>
+
+        <div class="controls-hint">Utilisez les flèches du clavier</div>
+    </div>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    
+    <script src="script.js"></script>
+</body>
+</html>
