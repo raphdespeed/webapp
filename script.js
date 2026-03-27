@@ -244,6 +244,18 @@ window.addEventListener('keydown', e => {
     }
 });
 
+// Contrôles Mobiles
+document.getElementById('btn-up').addEventListener('touchstart', (e) => { e.preventDefault(); if (dy !== 1) { nextDx = 0; nextDy = -1; } });
+document.getElementById('btn-down').addEventListener('touchstart', (e) => { e.preventDefault(); if (dy !== -1) { nextDx = 0; nextDy = 1; } });
+document.getElementById('btn-left').addEventListener('touchstart', (e) => { e.preventDefault(); if (dx !== 1) { nextDx = -1; nextDy = 0; } });
+document.getElementById('btn-right').addEventListener('touchstart', (e) => { e.preventDefault(); if (dx !== -1) { nextDx = 1; nextDy = 0; } });
+
+// Support souris pour test sur PC
+document.getElementById('btn-up').addEventListener('mousedown', () => { if (dy !== 1) { nextDx = 0; nextDy = -1; } });
+document.getElementById('btn-down').addEventListener('mousedown', () => { if (dy !== -1) { nextDx = 0; nextDy = 1; } });
+document.getElementById('btn-left').addEventListener('mousedown', () => { if (dx !== 1) { nextDx = -1; nextDy = 0; } });
+document.getElementById('btn-right').addEventListener('mousedown', () => { if (dx !== -1) { nextDx = 1; nextDy = 0; } });
+
 restartBtn.addEventListener('click', () => {
     isGameOver = false;
     init();
