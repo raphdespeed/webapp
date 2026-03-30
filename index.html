@@ -9,11 +9,32 @@
 <body>
     <!-- Écran de Profil -->
     <div id="profile-screen" class="overlay">
-        <div class="neon-box">
+        <div class="neon-box main-menu">
             <h1>NEON SNAKE</h1>
-            <p>Entre ton pseudo pour jouer :</p>
-            <input type="text" id="username-input" placeholder="TON PSEUDO..." maxlength="15">
-            <button id="start-btn">ENTRER</button>
+            
+            <div class="login-section">
+                <p>TON PSEUDO :</p>
+                <input type="text" id="username-input" placeholder="ENTRE TON NOM..." maxlength="15">
+                <button id="start-btn">JOUER</button>
+            </div>
+
+            <div class="leaderboard-section">
+                <h3>CLASSEMENT MONDIAL</h3>
+                <div class="table-wrapper">
+                    <table id="leaderboard-table">
+                        <thead>
+                            <tr>
+                                <th>RANG</th>
+                                <th>PSEUDO</th>
+                                <th>SCORE</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leaderboard-body">
+                            <!-- Rempli par JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -31,7 +52,7 @@
             <div id="game-over" class="hidden">
                 <h2>GAME OVER</h2>
                 <button id="restart-btn">REJOUER</button>
-                <button id="change-user-btn" style="margin-top: 10px; border-color: #00e5ff; color: #00e5ff; box-shadow: 0 0 10px #00e5ff;">CHANGER DE PROFIL</button>
+                <button id="change-user-btn" style="margin-top: 10px; border-color: #00e5ff; color: #00e5ff; box-shadow: 0 0 10px #00e5ff;">MENU PRINCIPAL</button>
             </div>
         </div>
 
@@ -45,23 +66,6 @@
                 <button class="touch-btn" id="btn-down">▼</button>
                 <button class="touch-btn" id="btn-right">▶</button>
             </div>
-        </div>
-
-        <!-- Leaderboard -->
-        <div class="leaderboard-section">
-            <h3>TOP 5 DES MEILLEURS JOUEURS</h3>
-            <table id="leaderboard-table">
-                <thead>
-                    <tr>
-                        <th>RANG</th>
-                        <th>PSEUDO</th>
-                        <th>SCORE</th>
-                    </tr>
-                </thead>
-                <tbody id="leaderboard-body">
-                    <!-- Rempli par JS -->
-                </tbody>
-            </table>
         </div>
 
         <div class="controls-hint">Utilisez les flèches du clavier</div>

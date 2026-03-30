@@ -33,6 +33,7 @@ const tileCount = canvas.width / gridSize;
 
 // État Global
 let currentUser = "";
+let userId = localStorage.getItem('snakeUserId') || null;
 let localScores = JSON.parse(localStorage.getItem('snakeProfiles')) || {}; // Gardé pour rapidité locale
 
 // État du jeu
@@ -51,10 +52,9 @@ let gameTimeout;
 
 // --- GESTION FIREBASE (CLASSEMENT MONDIAL) ---
 
-// Écouteur en temps réel pour le Top 5
+// Écouteur en temps réel pour tous les scores
 db.collection("leaderboard")
     .orderBy("score", "desc")
-    .limit(5)
     .onSnapshot((querySnapshot) => {
         const entries = [];
         querySnapshot.forEach((doc) => {
@@ -87,8 +87,8 @@ async function saveScoreToFirestore() {
         localStorage.setItem('snakeProfiles', JSON.stringify(localScores));
         
         try {
-            // Utiliser le pseudo comme ID de document pour écraser le score précédent
-            await db.collection("leaderboard").doc(currentUser).set({
+            // Utiliser l'ID unique au lieu du pseudo pour ne pas écraser les autres
+            await db.collection("leaderboard").doc(userId).set({
                 username: currentUser,
                 score: score,
                 timestamp: firebase.firestore.FieldValue.serverTimestamp()
@@ -118,9 +118,15 @@ async function loginUser() {
     gameUI.classList.remove('hidden');
     displayUsername.innerText = currentUser;
     
-    // Essayer de récupérer le record mondial pour cet utilisateur
+    // Générer un ID unique si c'est un nouveau joueur
+    if (!userId) {
+        userId = currentUser + "_" + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('snakeUserId', userId);
+    }
+
+    // Essayer de récupérer le record mondial pour cet ID unique
     try {
-        const doc = await db.collection("leaderboard").doc(currentUser).get();
+        const doc = await db.collection("leaderboard").doc(userId).get();
         if (doc.exists) {
             bestScore = doc.data().score;
             localScores[currentUser] = bestScore; // Sync local
