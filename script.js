@@ -1,17 +1,4 @@
-// CONFIGURATION FIREBASE
-const firebaseConfig = {
-  apiKey: "AIzaSyBpVHVVdF3Ik00s_8pl8sI4y4qgw382Z10",
-  authDomain: "snake-neon-a6e77.firebaseapp.com",
-  projectId: "snake-neon-a6e77",
-  storageBucket: "snake-neon-a6e77.firebasestorage.app",
-  messagingSenderId: "159643256444",
-  appId: "1:159643256444:web:7f810e58619b7df7a12bf9"
-};
-
-// Initialisation
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-
+// ÉTAT DU JEU ET CONFIGURATION
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const currentScoreElement = document.getElementById('current-score');
@@ -33,12 +20,13 @@ const tileCount = canvas.width / gridSize;
 
 // État Global
 let currentUser = "";
-let userId = localStorage.getItem('snakeUserId') || null;
-let localScores = JSON.parse(localStorage.getItem('snakeProfiles')) || {}; // Gardé pour rapidité locale
+let localScores = JSON.parse(localStorage.getItem('snakeHistory')) || [];
 
 // État du jeu
 let snake = [];
 let food = { x: 5, y: 5 };
+let bigFood = null; // { x, y, spawnTime }
+let regularApplesEaten = 0;
 let dx = 0;
 let dy = 0;
 let nextDx = 0;
@@ -46,25 +34,15 @@ let nextDy = 0;
 let score = 0;
 let bestScore = 0;
 let initialBestScore = 0;
-let speed = 150; 
+let speed = 200; // Plus lent au départ (était 150)
 let isGameOver = false;
 let gameTimeout;
 
-// --- GESTION FIREBASE (CLASSEMENT MONDIAL) ---
+// --- GESTION DE L'HISTORIQUE LOCAL ---
 
-// Écouteur en temps réel pour tous les scores
-db.collection("leaderboard")
-    .orderBy("score", "desc")
-    .onSnapshot((querySnapshot) => {
-        const entries = [];
-        querySnapshot.forEach((doc) => {
-            entries.push(doc.data());
-        });
-        renderLeaderboard(entries);
-    });
-
-function renderLeaderboard(entries) {
-    leaderboardBody.innerHTML = entries.map((entry, index) => `
+function renderLeaderboard() {
+    const sorted = [...localScores].sort((a, b) => b.score - a.score).slice(0, 50);
+    leaderboardBody.innerHTML = sorted.map((entry, index) => `
         <tr>
             <td>${index + 1}</td>
             <td>${entry.username}</td>
@@ -73,32 +51,19 @@ function renderLeaderboard(entries) {
     `).join('');
 }
 
-async function saveScoreToFirestore() {
-    // --- SÉCURITÉ LOCALE ---
-    // 1. On bloque si le score est physiquement impossible (ex: > 200)
-    if (score > 200) {
-        console.error("Tentative de triche détectée : Score trop élevé.");
-        return;
-    }
+renderLeaderboard();
 
-    // 2. On ne met à jour Firestore que si le score est supérieur au record enregistré localement
-    if (score > (localScores[currentUser] || 0)) {
-        localScores[currentUser] = score;
-        localStorage.setItem('snakeProfiles', JSON.stringify(localScores));
-        
-        try {
-            // Utiliser l'ID unique au lieu du pseudo pour ne pas écraser les autres
-            await db.collection("leaderboard").doc(userId).set({
-                username: currentUser,
-                score: score,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp()
-            }, { merge: true });
-            console.log("Score mondial mis à jour !");
-        } catch (error) {
-            // Si les règles Firebase rejettent l'écriture (ex: triche), l'erreur sera captée ici
-            console.error("Erreur de sauvegarde (Vérifiez les règles Firebase) :", error);
-        }
-    }
+function saveScoreLocally() {
+    if (score <= 0) return;
+    localScores.push({
+        username: currentUser,
+        score: score,
+        timestamp: new Date().getTime()
+    });
+    localScores.sort((a, b) => b.score - a.score);
+    if (localScores.length > 100) localScores = localScores.slice(0, 100);
+    localStorage.setItem('snakeHistory', JSON.stringify(localScores));
+    renderLeaderboard();
 }
 
 // --- GESTION DES PROFILS ---
@@ -109,34 +74,16 @@ startBtn.addEventListener('click', () => {
         currentUser = name;
         loginUser();
     } else {
-        alert("Entre un pseudo valide !");
+        alert("Entre un pseudo !");
     }
 });
 
-async function loginUser() {
+function loginUser() {
     profileScreen.classList.add('hidden');
     gameUI.classList.remove('hidden');
     displayUsername.innerText = currentUser;
-    
-    // Générer un ID unique si c'est un nouveau joueur
-    if (!userId) {
-        userId = currentUser + "_" + Math.random().toString(36).substr(2, 9);
-        localStorage.setItem('snakeUserId', userId);
-    }
-
-    // Essayer de récupérer le record mondial pour cet ID unique
-    try {
-        const doc = await db.collection("leaderboard").doc(userId).get();
-        if (doc.exists) {
-            bestScore = doc.data().score;
-            localScores[currentUser] = bestScore; // Sync local
-        } else {
-            bestScore = localScores[currentUser] || 0;
-        }
-    } catch (e) {
-        bestScore = localScores[currentUser] || 0;
-    }
-    
+    const userScores = localScores.filter(s => s.username === currentUser);
+    bestScore = userScores.length > 0 ? Math.max(...userScores.map(s => s.score)) : 0;
     initialBestScore = bestScore;
     init();
 }
@@ -147,6 +94,7 @@ changeUserBtn.addEventListener('click', () => {
     gameOverElement.classList.add('hidden');
     isGameOver = true;
     if (gameTimeout) clearTimeout(gameTimeout);
+    renderLeaderboard();
 });
 
 // --- LOGIQUE DU JEU ---
@@ -155,7 +103,12 @@ function init() {
     snake = [{ x: 10, y: 10 }, { x: 10, y: 11 }, { x: 10, y: 12 }];
     dx = 0; dy = -1; nextDx = 0; nextDy = -1;
     score = 0;
-    bestScore = localScores[currentUser] || 0;
+    regularApplesEaten = 0;
+    bigFood = null;
+    speed = 200;
+    
+    const userScores = localScores.filter(s => s.username === currentUser);
+    bestScore = userScores.length > 0 ? Math.max(...userScores.map(s => s.score)) : 0;
     initialBestScore = bestScore;
     
     currentScoreElement.innerText = score;
@@ -175,8 +128,29 @@ function createFood() {
     if (snake.some(part => part.x === food.x && part.y === food.y)) createFood();
 }
 
+function spawnBigFood() {
+    bigFood = {
+        x: Math.floor(Math.random() * tileCount),
+        y: Math.floor(Math.random() * tileCount),
+        spawnTime: Date.now()
+    };
+    // Éviter de spawner sur le serpent ou la nourriture normale
+    if (snake.some(p => p.x === bigFood.x && p.y === bigFood.y) || (bigFood.x === food.x && bigFood.y === food.y)) {
+        spawnBigFood();
+    }
+}
+
 function gameLoop() {
     if (isGameOver) return;
+    
+    // Gérer l'expiration de la grosse pomme
+    if (bigFood) {
+        const elapsed = (Date.now() - bigFood.spawnTime) / 1000;
+        if (elapsed >= 5) {
+            bigFood = null;
+        }
+    }
+
     gameTimeout = setTimeout(() => {
         update();
         draw();
@@ -199,25 +173,52 @@ function update() {
     dx = nextDx; dy = nextDy;
     let head = { x: snake[0].x + dx, y: snake[0].y + dy };
 
-    // --- TRAVERSÉE DES MURS ---
     if (head.x < 0) head.x = tileCount - 1;
     if (head.x >= tileCount) head.x = 0;
     if (head.y < 0) head.y = tileCount - 1;
     if (head.y >= tileCount) head.y = 0;
 
-    // Collision avec soi-même (On garde cette défaite !)
     if (snake.some(part => part.x === head.x && part.y === head.y)) {
         return gameOver();
     }
 
     snake.unshift(head);
+
+    // Collision Pomme Normale
     if (head.x === food.x && head.y === food.y) {
         score += 1;
+        regularApplesEaten++;
         currentScoreElement.innerText = score;
         checkBestScore();
-        if (score % 5 === 0 && speed > 50) speed -= 15;
+        
+        if (regularApplesEaten >= 3) {
+            spawnBigFood();
+            regularApplesEaten = 0;
+        }
+        
+        // VITESSE : Augmente seulement après 10 pommes mangées
+        if (score > 10 && speed > 40) {
+            speed -= 5; // Augmentation graduelle
+        }
+        
         createFood();
-    } else {
+    } 
+    // Collision Grosse Pomme
+    else if (bigFood && head.x === bigFood.x && head.y === bigFood.y) {
+        const elapsed = (Date.now() - bigFood.spawnTime) / 1000;
+        const points = Math.max(1, Math.ceil(5 - elapsed));
+        score += points;
+        currentScoreElement.innerText = score;
+        checkBestScore();
+
+        // On augmente aussi la vitesse pour la grosse pomme si le score > 10
+        if (score > 10 && speed > 40) {
+            speed -= 5;
+        }
+
+        bigFood = null;
+    }
+    else {
         snake.pop();
     }
 }
@@ -226,50 +227,77 @@ function draw() {
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     drawGrid();
 
-    // Food
-    ctx.shadowBlur = 15; ctx.shadowColor = '#ff3131'; ctx.fillStyle = '#ff3131';
+    // NOURRITURE NORMALE (Vert)
+    ctx.shadowBlur = 15; ctx.shadowColor = '#39ff14'; ctx.fillStyle = '#39ff14';
     ctx.beginPath(); ctx.arc(food.x * gridSize + gridSize/2, food.y * gridSize + gridSize/2, gridSize/2.5, 0, Math.PI * 2); ctx.fill();
 
-    // Snake
-    snake.forEach((part, index) => {
-        ctx.shadowBlur = index === 0 ? 15 : 8;
-        ctx.shadowColor = index === 0 ? '#7cff72' : '#39ff14';
-        ctx.fillStyle = index === 0 ? '#7cff72' : '#39ff14';
+    // GROSSE POMME (Rouge avec Compte à rebours)
+    if (bigFood) {
+        const elapsed = (Date.now() - bigFood.spawnTime) / 1000;
+        const timeLeft = Math.max(1, Math.ceil(5 - elapsed));
+        const centerX = bigFood.x * gridSize + gridSize / 2;
+        const centerY = bigFood.y * gridSize + gridSize / 2;
+
+        ctx.shadowBlur = 20; ctx.shadowColor = '#ff0000'; ctx.fillStyle = '#ff0000';
+        ctx.beginPath(); ctx.arc(centerX, centerY, gridSize/1.2, 0, Math.PI * 2); ctx.fill();
         
+        // Texte du compte à rebours
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 14px Orbitron';
+        ctx.textAlign = 'center';
+        ctx.fillText(timeLeft, centerX, centerY + 5);
+    }
+
+    // DESSIN DU CORPS (FLUIDE ROUGE)
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.lineWidth = gridSize - 4; ctx.strokeStyle = '#ff0000';
+    ctx.shadowBlur = 10; ctx.shadowColor = '#ff0000';
+
+    ctx.beginPath();
+    for (let i = 0; i < snake.length; i++) {
+        const x = snake[i].x * gridSize + gridSize / 2;
+        const y = snake[i].y * gridSize + gridSize / 2;
+        if (i === 0) ctx.moveTo(x, y);
+        else {
+            const prevX = snake[i-1].x; const prevY = snake[i-1].y;
+            if (Math.abs(snake[i].x - prevX) > 1 || Math.abs(snake[i].y - prevY) > 1) {
+                ctx.stroke(); ctx.beginPath(); ctx.moveTo(x, y);
+            } else ctx.lineTo(x, y);
+        }
+    }
+    ctx.stroke();
+
+    // DÉTAILS SERPENT
+    snake.forEach((part, index) => {
+        const centerX = part.x * gridSize + gridSize / 2;
+        const centerY = part.y * gridSize + gridSize / 2;
+
         if (index === 0) {
-            // DESSIN DE LA TÊTE AVEC BOUCHE
-            const centerX = part.x * gridSize + gridSize / 2;
-            const centerY = part.y * gridSize + gridSize / 2;
-            
-            // Calculer l'angle de rotation selon la direction
+            ctx.save(); ctx.translate(centerX, centerY);
             let rotation = 0;
-            if (dx === 1) rotation = 0;
-            if (dx === -1) rotation = Math.PI;
-            if (dy === 1) rotation = Math.PI / 2;
-            if (dy === -1) rotation = -Math.PI / 2;
-
-            // Vérifier si la nourriture est juste à côté pour ouvrir grand la bouche
-            const dist = Math.abs(part.x - food.x) + Math.abs(part.y - food.y);
-            // On gère aussi la distance à travers les murs pour la bouche
-            const wrapDistX = Math.abs(Math.abs(part.x - food.x) - tileCount);
-            const wrapDistY = Math.abs(Math.abs(part.y - food.y) - tileCount);
-            const isNearFood = dist === 1 || (dist === tileCount - 1 && (wrapDistX === 1 || wrapDistY === 1));
+            if (dx === 1) rotation = 0; if (dx === -1) rotation = Math.PI;
+            if (dy === 1) rotation = Math.PI / 2; if (dy === -1) rotation = -Math.PI / 2;
+            ctx.rotate(rotation);
+            ctx.fillStyle = '#ff0000'; ctx.beginPath(); ctx.ellipse(2, 0, gridSize/1.5, gridSize/1.8, 0, 0, Math.PI * 2); ctx.fill();
             
-            const mouthSize = isNearFood ? 0.4 : 0.15; // Ouvre grand si proche
-
-            ctx.beginPath();
-            ctx.moveTo(centerX, centerY);
-            ctx.arc(centerX, centerY, gridSize / 2 - 1, 
-                rotation + mouthSize * Math.PI, 
-                rotation + (2 - mouthSize) * Math.PI);
-            ctx.lineTo(centerX, centerY);
-            ctx.fill();
+            // Bouche (Vérifie aussi la grosse pomme)
+            const distNormal = Math.abs(part.x - food.x) + Math.abs(part.y - food.y);
+            const distBig = bigFood ? Math.abs(part.x - bigFood.x) + Math.abs(part.y - bigFood.y) : 999;
+            if (distNormal === 1 || distBig === 1) {
+                ctx.fillStyle = '#000'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, gridSize/1.6, -0.5, 0.5); ctx.fill();
+            }
+            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(3, -4, 3, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(3, 4, 3, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(4, -4, 1.5, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(4, 4, 1.5, 0, Math.PI * 2); ctx.fill();
+            ctx.restore();
         } else {
-            // CORPS CLASSIQUE
-            ctx.fillRect(part.x * gridSize + 1, part.y * gridSize + 1, gridSize - 2, gridSize - 2);
+            ctx.shadowBlur = 0; ctx.fillStyle = '#ffff00';
+            ctx.beginPath(); ctx.arc(centerX, centerY - 2, 2.5, 0, Math.PI * 2); ctx.fill();
+            if (index % 2 === 0) { ctx.beginPath(); ctx.arc(centerX + 4, centerY + 3, 1.5, 0, Math.PI * 2); ctx.fill(); }
         }
     });
-    ctx.shadowBlur = 0;
 }
 
 function drawGrid() {
@@ -282,16 +310,12 @@ function drawGrid() {
 
 function gameOver() {
     isGameOver = true;
-    saveScoreToFirestore();
+    saveScoreLocally();
     gameOverElement.classList.remove('hidden');
 }
 
 window.addEventListener('keydown', e => {
-    // Empêcher le défilement de la page avec les flèches
-    if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key)) {
-        e.preventDefault();
-    }
-
+    if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key)) e.preventDefault();
     switch (e.key) {
         case 'ArrowUp': if (dy !== 1) { nextDx = 0; nextDy = -1; } break;
         case 'ArrowDown': if (dy !== -1) { nextDx = 0; nextDy = 1; } break;
@@ -306,7 +330,7 @@ document.getElementById('btn-down').addEventListener('touchstart', (e) => { e.pr
 document.getElementById('btn-left').addEventListener('touchstart', (e) => { e.preventDefault(); if (dx !== 1) { nextDx = -1; nextDy = 0; } });
 document.getElementById('btn-right').addEventListener('touchstart', (e) => { e.preventDefault(); if (dx !== -1) { nextDx = 1; nextDy = 0; } });
 
-// Support souris pour test sur PC
+// Support souris
 document.getElementById('btn-up').addEventListener('mousedown', () => { if (dy !== 1) { nextDx = 0; nextDy = -1; } });
 document.getElementById('btn-down').addEventListener('mousedown', () => { if (dy !== -1) { nextDx = 0; nextDy = 1; } });
 document.getElementById('btn-left').addEventListener('mousedown', () => { if (dx !== 1) { nextDx = -1; nextDy = 0; } });
