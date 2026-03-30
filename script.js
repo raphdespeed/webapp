@@ -74,8 +74,14 @@ function renderLeaderboard(entries) {
 }
 
 async function saveScoreToFirestore() {
-    // On ne met à jour Firestore que si le score est supérieur au record enregistré localement
-    // (pour éviter des écritures inutiles)
+    // --- SÉCURITÉ LOCALE ---
+    // 1. On bloque si le score est physiquement impossible (ex: > 200)
+    if (score > 200) {
+        console.error("Tentative de triche détectée : Score trop élevé.");
+        return;
+    }
+
+    // 2. On ne met à jour Firestore que si le score est supérieur au record enregistré localement
     if (score > (localScores[currentUser] || 0)) {
         localScores[currentUser] = score;
         localStorage.setItem('snakeProfiles', JSON.stringify(localScores));
@@ -89,7 +95,8 @@ async function saveScoreToFirestore() {
             }, { merge: true });
             console.log("Score mondial mis à jour !");
         } catch (error) {
-            console.error("Erreur lors de la sauvegarde Firestore: ", error);
+            // Si les règles Firebase rejettent l'écriture (ex: triche), l'erreur sera captée ici
+            console.error("Erreur de sauvegarde (Vérifiez les règles Firebase) :", error);
         }
     }
 }
@@ -184,10 +191,16 @@ function checkBestScore() {
 
 function update() {
     dx = nextDx; dy = nextDy;
-    const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+    let head = { x: snake[0].x + dx, y: snake[0].y + dy };
 
-    if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount || 
-        snake.some(part => part.x === head.x && part.y === head.y)) {
+    // --- TRAVERSÉE DES MURS ---
+    if (head.x < 0) head.x = tileCount - 1;
+    if (head.x >= tileCount) head.x = 0;
+    if (head.y < 0) head.y = tileCount - 1;
+    if (head.y >= tileCount) head.y = 0;
+
+    // Collision avec soi-même (On garde cette défaite !)
+    if (snake.some(part => part.x === head.x && part.y === head.y)) {
         return gameOver();
     }
 
@@ -216,7 +229,39 @@ function draw() {
         ctx.shadowBlur = index === 0 ? 15 : 8;
         ctx.shadowColor = index === 0 ? '#7cff72' : '#39ff14';
         ctx.fillStyle = index === 0 ? '#7cff72' : '#39ff14';
-        ctx.fillRect(part.x * gridSize + 1, part.y * gridSize + 1, gridSize - 2, gridSize - 2);
+        
+        if (index === 0) {
+            // DESSIN DE LA TÊTE AVEC BOUCHE
+            const centerX = part.x * gridSize + gridSize / 2;
+            const centerY = part.y * gridSize + gridSize / 2;
+            
+            // Calculer l'angle de rotation selon la direction
+            let rotation = 0;
+            if (dx === 1) rotation = 0;
+            if (dx === -1) rotation = Math.PI;
+            if (dy === 1) rotation = Math.PI / 2;
+            if (dy === -1) rotation = -Math.PI / 2;
+
+            // Vérifier si la nourriture est juste à côté pour ouvrir grand la bouche
+            const dist = Math.abs(part.x - food.x) + Math.abs(part.y - food.y);
+            // On gère aussi la distance à travers les murs pour la bouche
+            const wrapDistX = Math.abs(Math.abs(part.x - food.x) - tileCount);
+            const wrapDistY = Math.abs(Math.abs(part.y - food.y) - tileCount);
+            const isNearFood = dist === 1 || (dist === tileCount - 1 && (wrapDistX === 1 || wrapDistY === 1));
+            
+            const mouthSize = isNearFood ? 0.4 : 0.15; // Ouvre grand si proche
+
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.arc(centerX, centerY, gridSize / 2 - 1, 
+                rotation + mouthSize * Math.PI, 
+                rotation + (2 - mouthSize) * Math.PI);
+            ctx.lineTo(centerX, centerY);
+            ctx.fill();
+        } else {
+            // CORPS CLASSIQUE
+            ctx.fillRect(part.x * gridSize + 1, part.y * gridSize + 1, gridSize - 2, gridSize - 2);
+        }
     });
     ctx.shadowBlur = 0;
 }
@@ -236,6 +281,11 @@ function gameOver() {
 }
 
 window.addEventListener('keydown', e => {
+    // Empêcher le défilement de la page avec les flèches
+    if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key)) {
+        e.preventDefault();
+    }
+
     switch (e.key) {
         case 'ArrowUp': if (dy !== 1) { nextDx = 0; nextDy = -1; } break;
         case 'ArrowDown': if (dy !== -1) { nextDx = 0; nextDy = 1; } break;
