@@ -178,6 +178,8 @@ button:hover {
     display: none;
     margin-top: 20px;
     user-select: none;
+    touch-action: none;
+    -webkit-user-select: none;
 }
 
 .control-row {
@@ -200,13 +202,22 @@ button:hover {
     border: 2px solid #00e5ff;
     box-shadow: 0 0 10px #00e5ff;
     background: rgba(0, 229, 255, 0.1);
-    -webkit-tap-highlight-color: transparent; /* Enlever le flash de couleur sur mobile */
+    -webkit-tap-highlight-color: transparent;
     outline: none;
+    touch-action: manipulation;
+    -webkit-user-select: none;
+}
+
+.touch-btn:hover {
+    background: rgba(0, 229, 255, 0.25);
+    color: #00e5ff;
+    box-shadow: 0 0 15px #00e5ff;
 }
 
 .touch-btn:active {
     background: #00e5ff;
     color: #000;
+    box-shadow: 0 0 20px #00e5ff;
     transform: scale(0.9);
 }
 

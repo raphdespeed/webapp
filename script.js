@@ -324,17 +324,47 @@ window.addEventListener('keydown', e => {
     }
 });
 
-// Contrôles Mobiles
-document.getElementById('btn-up').addEventListener('touchstart', (e) => { e.preventDefault(); if (dy !== 1) { nextDx = 0; nextDy = -1; } });
-document.getElementById('btn-down').addEventListener('touchstart', (e) => { e.preventDefault(); if (dy !== -1) { nextDx = 0; nextDy = 1; } });
-document.getElementById('btn-left').addEventListener('touchstart', (e) => { e.preventDefault(); if (dx !== 1) { nextDx = -1; nextDy = 0; } });
-document.getElementById('btn-right').addEventListener('touchstart', (e) => { e.preventDefault(); if (dx !== -1) { nextDx = 1; nextDy = 0; } });
+// Contrôles Mobiles - Empêcher le scroll et rendre les contrôles stables
+const mobileControls = document.getElementById('mobile-controls');
 
-// Support souris
-document.getElementById('btn-up').addEventListener('mousedown', () => { if (dy !== 1) { nextDx = 0; nextDy = -1; } });
-document.getElementById('btn-down').addEventListener('mousedown', () => { if (dy !== -1) { nextDx = 0; nextDy = 1; } });
-document.getElementById('btn-left').addEventListener('mousedown', () => { if (dx !== 1) { nextDx = -1; nextDy = 0; } });
-document.getElementById('btn-right').addEventListener('mousedown', () => { if (dx !== -1) { nextDx = 1; nextDy = 0; } });
+// Empêcher tout scroll/bounce au niveau du conteneur de contrôles
+if (mobileControls) {
+    mobileControls.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+}
+
+// Configuration centralisée des boutons directionnels
+const directionButtons = [
+    { id: 'btn-up', condition: () => dy !== 1, newDx: 0, newDy: -1 },
+    { id: 'btn-down', condition: () => dy !== -1, newDx: 0, newDy: 1 },
+    { id: 'btn-left', condition: () => dx !== 1, newDx: -1, newDy: 0 },
+    { id: 'btn-right', condition: () => dx !== -1, newDx: 1, newDy: 0 }
+];
+
+directionButtons.forEach(({ id, condition, newDx, newDy }) => {
+    const btn = document.getElementById(id);
+    
+    btn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (condition()) { nextDx = newDx; nextDy = newDy; }
+    }, { passive: false });
+
+    btn.addEventListener('touchend', (e) => {
+        e.preventDefault();
+    }, { passive: false });
+
+    btn.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        if (condition()) { nextDx = newDx; nextDy = newDy; }
+    });
+});
+
+// Empêcher le scroll global sur la page quand le jeu est en cours (mobile)
+document.body.addEventListener('touchmove', (e) => {
+    if (!gameUI.classList.contains('hidden')) {
+        e.preventDefault();
+    }
+}, { passive: false });
 
 restartBtn.addEventListener('click', () => {
     isGameOver = false;
