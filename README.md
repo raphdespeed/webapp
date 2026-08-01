@@ -2,6 +2,10 @@
 
 Un jeu de Snake rétro avec une esthétique **cyberpunk néon**, jouable directement dans le navigateur.
 
+<p align="center">
+  <img src="screenshot.png" alt="Neon Snake - Aperçu du jeu" width="500">
+</p>
+
 ## 🎮 Jouer maintenant
 
 👉 **[Cliquez ici pour jouer !](https://raphdespeed.github.io/webapp/)**
