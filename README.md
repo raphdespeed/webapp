@@ -8,7 +8,7 @@ Un jeu de Snake rétro avec une esthétique **cyberpunk néon**, jouable directe
 
 ## 🎮 Jouer maintenant
 
-👉 **[Cliquez ici pour jouer !](https://raphdespeed.github.io/webapp/)**
+👉 **[Cliquez ici pour jouer !](https://raphdespeed.github.io/snake/)**
 
 ## ✨ Fonctionnalités
 
